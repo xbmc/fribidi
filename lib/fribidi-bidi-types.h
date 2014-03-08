@@ -57,17 +57,19 @@ typedef signed char FriBidiLevel;
 #define FRIBIDI_MASK_SENTINEL	0x00000080L	/* Is sentinel */
 /* Sentinels are not valid chars, just identify the start/end of strings. */
 
-/* Each char can be only one of the five following. */
+/* Each char can be only one of the six following. */
 #define FRIBIDI_MASK_LETTER	0x00000100L	/* Is letter: L, R, AL */
 #define FRIBIDI_MASK_NUMBER	0x00000200L	/* Is number: EN, AN */
 #define FRIBIDI_MASK_NUMSEPTER	0x00000400L	/* Is separator or terminator: ES, ET, CS */
 #define FRIBIDI_MASK_SPACE	0x00000800L	/* Is space: BN, BS, SS, WS */
-#define FRIBIDI_MASK_EXPLICIT	0x00001000L	/* Is expilict mark: LRE, RLE, LRO, RLO, PDF */
+#define FRIBIDI_MASK_EXPLICIT	0x00001000L	/* Is explicit mark: LRE, RLE, LRO, RLO, PDF */
+#define FRIBIDI_MASK_ISOLATE    0x00008000L     /* Is isolate mark: LRI, RLI, FSI, PDI */
 
 /* Can be set only if FRIBIDI_MASK_SPACE is also set. */
 #define FRIBIDI_MASK_SEPARATOR	0x00002000L	/* Is text separator: BS, SS */
 /* Can be set only if FRIBIDI_MASK_EXPLICIT is also set. */
 #define FRIBIDI_MASK_OVERRIDE	0x00004000L	/* Is explicit override: LRO, RLO */
+
 
 /* The following exist to make types pairwise different, some of them can
  * be removed but are here because of efficiency (make queries faster). */
@@ -167,6 +169,19 @@ typedef signed char FriBidiLevel;
 #define FRIBIDI_TYPE_PRIVATE	( FRIBIDI_MASK_PRIVATE )
 
 
+/* New types in Unicode 6.3 */
+
+/* Left-to-Right Isolate */
+#define FRIBIDI_TYPE_LRI_VAL    ( FRIBIDI_MASK_STRONG | FRIBIDI_MASK_ISOLATE )
+/* Right-to-Left Isolate */
+#define FRIBIDI_TYPE_RLI_VAL    ( FRIBIDI_MASK_STRONG | FRIBIDI_MASK_ISOLATE \
+                                | FRIBIDI_MASK_RTL )
+/* First strong isolate */
+#define FRIBIDI_TYPE_FSI_VAL    ( FRIBIDI_MASK_STRONG | FRIBIDI_MASK_ISOLATE | FRIBIDI_MASK_NEUTRAL )
+
+/* Pop Directional Isolate*/
+#define FRIBIDI_TYPE_PDI_VAL	( FRIBIDI_MASK_WEAK | FRIBIDI_MASK_ISOLATE )
+
 /* Define Enums only if sizeof(int) == 4 (UTF-32), and not compiling C++.
  * The problem with C++ is that then casts between int32 and enum will fail!
  */
@@ -214,6 +229,10 @@ typedef fribidi_uint32 FriBidiCharType;
 # define FRIBIDI_TYPE_LRO	FRIBIDI_TYPE_LRO_VAL
 # define FRIBIDI_TYPE_RLO	FRIBIDI_TYPE_RLO_VAL
 # define FRIBIDI_TYPE_PDF	FRIBIDI_TYPE_PDF_VAL
+# define FRIBIDI_TYPE_LRI	FRIBIDI_TYPE_PDF_LRI
+# define FRIBIDI_TYPE_RLI	FRIBIDI_TYPE_PDF_RLI
+# define FRIBIDI_TYPE_FSI	FRIBIDI_TYPE_PDF_FSI
+# define FRIBIDI_TYPE_PDI	FRIBIDI_TYPE_PDF_PDI
 
 typedef fribidi_uint32 FriBidiParType;
 # define FRIBIDI_PAR_LTR	FRIBIDI_TYPE_LTR_VAL
@@ -273,6 +292,8 @@ typedef fribidi_uint32 FriBidiParType;
 #define FRIBIDI_IS_SPACE(p)    ((p) & FRIBIDI_MASK_SPACE)
 /* Is explicit mark: LRE, RLE, LRO, RLO, PDF? */
 #define FRIBIDI_IS_EXPLICIT(p) ((p) & FRIBIDI_MASK_EXPLICIT)
+/* Is isolator */
+#define FRIBIDI_IS_ISOLATE(p)    ((p) & FRIBIDI_MASK_ISOLATE)
 
 /* Is text separator: BS, SS? */
 #define FRIBIDI_IS_SEPARATOR(p) ((p) & FRIBIDI_MASK_SEPARATOR)
