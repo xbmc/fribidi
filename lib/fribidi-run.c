@@ -80,7 +80,7 @@ new_run (
   if LIKELY
     (run)
     {
-      run->len = run->pos = run->level = 0;
+      run->len = run->pos = run->level = run->isolate_level = 0;
       run->next = run->prev = NULL;
     }
   return run;
@@ -274,6 +274,7 @@ shadow_run_list (
 	    p->next->prev = r;
 	    r->next = p->next;
 	    r->level = p->level;
+	    r->isolate_level = p->isolate_level;
 	    r->type = p->type;
 	    r->len = p->pos + p->len - pos2;
 	    r->pos = pos2;

@@ -63,12 +63,13 @@ typedef signed char FriBidiLevel;
 #define FRIBIDI_MASK_NUMSEPTER	0x00000400L	/* Is separator or terminator: ES, ET, CS */
 #define FRIBIDI_MASK_SPACE	0x00000800L	/* Is space: BN, BS, SS, WS */
 #define FRIBIDI_MASK_EXPLICIT	0x00001000L	/* Is explicit mark: LRE, RLE, LRO, RLO, PDF */
-#define FRIBIDI_MASK_ISOLATE    0x00008000L     /* Is isolate mark: LRI, RLI, FSI, PDI */
+#define FRIBIDI_MASK_ISOLATE    0x00002000L     /* Is isolate mark: LRI, RLI, FSI, PDI */
 
 /* Can be set only if FRIBIDI_MASK_SPACE is also set. */
-#define FRIBIDI_MASK_SEPARATOR	0x00002000L	/* Is text separator: BS, SS */
+#define FRIBIDI_MASK_SEPARATOR	0x00004000L	/* Is text separator: BS, SS */
 /* Can be set only if FRIBIDI_MASK_EXPLICIT is also set. */
-#define FRIBIDI_MASK_OVERRIDE	0x00004000L	/* Is explicit override: LRO, RLO */
+#define FRIBIDI_MASK_OVERRIDE	0x00008000L	/* Is explicit override: LRO, RLO */
+#define FRIBIDI_MASK_FIRST	0x02000000L     /* Whether direction is determined by first strong */
 
 
 /* The following exist to make types pairwise different, some of them can
@@ -172,15 +173,17 @@ typedef signed char FriBidiLevel;
 /* New types in Unicode 6.3 */
 
 /* Left-to-Right Isolate */
-#define FRIBIDI_TYPE_LRI_VAL    ( FRIBIDI_MASK_STRONG | FRIBIDI_MASK_ISOLATE )
+#define FRIBIDI_TYPE_LRI_VAL    ( FRIBIDI_MASK_NEUTRAL | FRIBIDI_MASK_EXPLICIT \
+                                | FRIBIDI_MASK_ISOLATE )
 /* Right-to-Left Isolate */
-#define FRIBIDI_TYPE_RLI_VAL    ( FRIBIDI_MASK_STRONG | FRIBIDI_MASK_ISOLATE \
-                                | FRIBIDI_MASK_RTL )
+#define FRIBIDI_TYPE_RLI_VAL    ( FRIBIDI_MASK_NEUTRAL | FRIBIDI_MASK_EXPLICIT \
+                                | FRIBIDI_MASK_ISOLATE | FRIBIDI_MASK_RTL )
 /* First strong isolate */
-#define FRIBIDI_TYPE_FSI_VAL    ( FRIBIDI_MASK_STRONG | FRIBIDI_MASK_ISOLATE | FRIBIDI_MASK_NEUTRAL )
+#define FRIBIDI_TYPE_FSI_VAL    ( FRIBIDI_MASK_NEUTRAL | FRIBIDI_MASK_EXPLICIT \
+                                | FRIBIDI_MASK_ISOLATE | FRIBIDI_MASK_FIRST  )
 
 /* Pop Directional Isolate*/
-#define FRIBIDI_TYPE_PDI_VAL	( FRIBIDI_MASK_WEAK | FRIBIDI_MASK_ISOLATE )
+#define FRIBIDI_TYPE_PDI_VAL	( FRIBIDI_MASK_WEAK | FRIBIDI_MASK_EXPLICIT | FRIBIDI_MASK_ISOLATE)
 
 /* Define Enums only if sizeof(int) == 4 (UTF-32), and not compiling C++.
  * The problem with C++ is that then casts between int32 and enum will fail!
@@ -323,6 +326,10 @@ typedef fribidi_uint32 FriBidiParType;
 /* Is explicit or BN or NSM: LRE, RLE, LRO, RLO, PDF, BN, NSM? */
 #define FRIBIDI_IS_EXPLICIT_OR_BN_OR_NSM(p) \
 	((p) & (FRIBIDI_MASK_EXPLICIT | FRIBIDI_MASK_BN | FRIBIDI_MASK_NSM))
+
+/* Is explicit or BN or NSM: LRE, RLE, LRO, RLO, PDF, BN, NSM? */
+#define FRIBIDI_IS_EXPLICIT_OR_ISOLATE_OR_BN_OR_NSM(p) \
+	((p) & (FRIBIDI_MASK_EXPLICIT | FRIBIDI_MASK_ISOLATE | FRIBIDI_MASK_BN | FRIBIDI_MASK_NSM))
 
 /* Is explicit or BN or WS: LRE, RLE, LRO, RLO, PDF, BN, WS? */
 #define FRIBIDI_IS_EXPLICIT_OR_BN_OR_WS(p) \

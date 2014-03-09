@@ -56,6 +56,7 @@
 #define RL_LEN(list) ((list)->len)
 #define RL_POS(list) ((list)->pos)
 #define RL_LEVEL(list) ((list)->level)
+#define RL_ISOLATE_LEVEL(list) ((list)->isolate_level)
 
 static FriBidiRun *
 merge_with_prev (
@@ -153,8 +154,8 @@ print_types_re (
   MSG ("  Run types  : ");
   for_run_list (pp, pp)
   {
-    MSG5 ("%d:%d(%s)[%d] ",
-	  pp->pos, pp->len, fribidi_get_bidi_type_name (pp->type), pp->level);
+    MSG6 ("%d:%d(%s)[%d,%d] ",
+	  pp->pos, pp->len, fribidi_get_bidi_type_name (pp->type), pp->level, pp->isolate_level);
   }
   MSG ("\n");
 }
@@ -366,12 +367,20 @@ fribidi_get_par_embedding_levels (
     /* P2. P3. Search for first strong character and use its direction as
        base direction */
     {
-      for_run_list (pp, main_run_list) if (FRIBIDI_IS_LETTER (RL_TYPE (pp)))
-	{
-	  base_level = FRIBIDI_DIR_TO_LEVEL (RL_TYPE (pp));
-	  *pbase_dir = FRIBIDI_LEVEL_TO_DIR (base_level);
-	  break;
-	}
+      int isolate_level = 0;
+      for_run_list (pp, main_run_list)
+        {
+          if (FRIBIDI_IS_ISOLATE(RL_TYPE(pp)))
+            isolate_level++;
+          else if (RL_TYPE(pp) == FRIBIDI_TYPE_PDI)
+            isolate_level--;
+          else if (isolate_level==0 && FRIBIDI_IS_LETTER (RL_TYPE (pp)))
+            {
+              base_level = FRIBIDI_DIR_TO_LEVEL (RL_TYPE (pp));
+              *pbase_dir = FRIBIDI_LEVEL_TO_DIR (base_level);
+              break;
+            }
+        }
     }
   base_dir = FRIBIDI_LEVEL_TO_DIR (base_level);
   DBG2 ("  base level : %c", fribidi_char_from_level (base_level));
@@ -392,10 +401,12 @@ fribidi_get_par_embedding_levels (
     FriBidiCharType override, new_override;
     FriBidiStrIndex i;
     int stack_size, over_pushed, first_interval;
+    int directional_isolate = 0;
     struct
     {
       FriBidiCharType override;	/* only LTR, RTL and ON are valid */
       FriBidiLevel level;
+      int directional_isolate;
     } *status_stack;
     FriBidiRun temp_link;
 
@@ -408,8 +419,10 @@ fribidi_get_par_embedding_levels (
       (!explicits_list) goto out;
 
     /* X1. Begin by setting the current embedding level to the paragraph
-       embedding level. Set the directional override status to neutral.
-       Process each character iteratively, applying rules X2 through X9.
+       embedding level. Set the directional override status to neutral,
+       and directional isolate status to false.
+
+       Process each character iteratively, applying rules X2 through X8.
        Only embedding levels from 0 to 61 are valid in this phase. */
 
     level = base_level;
@@ -418,6 +431,7 @@ fribidi_get_par_embedding_levels (
     stack_size = 0;
     over_pushed = 0;
     first_interval = 0;
+    directional_isolate = 0;
     status_stack = fribidi_malloc (sizeof (status_stack[0]) *
 				   FRIBIDI_BIDI_MAX_RESOLVED_LEVELS);
 
@@ -455,6 +469,22 @@ fribidi_get_par_embedding_levels (
 	      for (i = RL_LEN (pp); i; i--)
 		POP_STATUS;
 	    }
+          else if (this_type == FRIBIDI_TYPE_PDI)
+            /* X6a. pop the direction of the stack */
+            {
+              /* TBD: support overflow isolate count */
+              /* TBD: support isolate count == 0 */
+	      for (i = RL_LEN (pp); i; i--)
+                {
+                  POP_STATUS;
+                  directional_isolate--;
+                }
+
+            }
+          else if (FRIBIDI_IS_ISOLATE(this_type))
+            {
+              directional_isolate+=1;
+            }
 
 	  /* X9. Remove all RLE, LRE, RLO, LRO, PDF, and BN codes. */
 	  /* Remove element and add it to explicits_list */
