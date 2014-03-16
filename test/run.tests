@@ -52,7 +52,7 @@ TEST () {
     echo " [Character set not supported]"
     return 0
   fi
-  "$top_builddir/bin/fribidi$EXEEXT" --test --charset "$charset" "$testcase" > "$test.output"
+  "$top_builddir/bin/fribidi$EXEEXT" -w 80 --test --charset "$charset" "$testcase" > "$test.output"
 
   reference="${testcase%.input}.reference";
   test -f "$reference" || reference="tests/${reference##*/}"

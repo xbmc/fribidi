@@ -250,6 +250,7 @@ print_bidi_string (
           if UNLIKELY(level == FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL - 1) \
             first_interval = over_pushed; \
           status_stack[stack_size].level = level; \
+          status_stack[stack_size].isolate = isolate; \
           status_stack[stack_size].override = override; \
           stack_size++; \
           level = new_level; \
@@ -274,6 +275,7 @@ print_bidi_string (
             stack_size--; \
             level = status_stack[stack_size].level; \
             override = status_stack[stack_size].override; \
+            isolate = status_stack[stack_size].isolate; \
           } \
       } \
     FRIBIDI_END_STMT
@@ -367,14 +369,14 @@ fribidi_get_par_embedding_levels (
     /* P2. P3. Search for first strong character and use its direction as
        base direction */
     {
-      int isolate_level = 0;
+      int valid_isolate_count = 0;
       for_run_list (pp, main_run_list)
         {
-          if (FRIBIDI_IS_ISOLATE(RL_TYPE(pp)))
-            isolate_level++;
-          else if (RL_TYPE(pp) == FRIBIDI_TYPE_PDI)
-            isolate_level--;
-          else if (isolate_level==0 && FRIBIDI_IS_LETTER (RL_TYPE (pp)))
+          if (RL_TYPE(pp) == FRIBIDI_TYPE_PDI)
+            valid_isolate_count--;
+          else if (FRIBIDI_IS_ISOLATE(RL_TYPE(pp)))
+            valid_isolate_count++;
+          else if (valid_isolate_count==0 && FRIBIDI_IS_LETTER (RL_TYPE (pp)))
             {
               base_level = FRIBIDI_DIR_TO_LEVEL (RL_TYPE (pp));
               *pbase_dir = FRIBIDI_LEVEL_TO_DIR (base_level);
@@ -401,12 +403,13 @@ fribidi_get_par_embedding_levels (
     FriBidiCharType override, new_override;
     FriBidiStrIndex i;
     int stack_size, over_pushed, first_interval;
-    int directional_isolate = 0;
+    int valid_isolate_count = 0;
+    int isolate = 0; /* The isolate status flag */
     struct
     {
       FriBidiCharType override;	/* only LTR, RTL and ON are valid */
       FriBidiLevel level;
-      int directional_isolate;
+      int isolate;
     } *status_stack;
     FriBidiRun temp_link;
 
@@ -431,7 +434,7 @@ fribidi_get_par_embedding_levels (
     stack_size = 0;
     over_pushed = 0;
     first_interval = 0;
-    directional_isolate = 0;
+    valid_isolate_count = 0;
     status_stack = fribidi_malloc (sizeof (status_stack[0]) *
 				   FRIBIDI_BIDI_MAX_RESOLVED_LEVELS);
 
@@ -453,6 +456,7 @@ fribidi_get_par_embedding_levels (
 	      /*   X5. With each LRO, compute the least greater even
 	         embedding level. */
 	      new_override = FRIBIDI_EXPLICIT_TO_OVERRIDE_DIR (this_type);
+              isolate=0;
 	      for (i = RL_LEN (pp); i; i--)
 		{
 		  new_level =
@@ -469,22 +473,6 @@ fribidi_get_par_embedding_levels (
 	      for (i = RL_LEN (pp); i; i--)
 		POP_STATUS;
 	    }
-          else if (this_type == FRIBIDI_TYPE_PDI)
-            /* X6a. pop the direction of the stack */
-            {
-              /* TBD: support overflow isolate count */
-              /* TBD: support isolate count == 0 */
-	      for (i = RL_LEN (pp); i; i--)
-                {
-                  POP_STATUS;
-                  directional_isolate--;
-                }
-
-            }
-          else if (FRIBIDI_IS_ISOLATE(this_type))
-            {
-              directional_isolate+=1;
-            }
 
 	  /* X9. Remove all RLE, LRE, RLO, LRO, PDF, and BN codes. */
 	  /* Remove element and add it to explicits_list */
@@ -493,6 +481,73 @@ fribidi_get_par_embedding_levels (
 	  move_node_before (pp, explicits_list);
 	  pp = &temp_link;
 	}
+      else if (this_type == FRIBIDI_TYPE_PDI)
+        /* X6a. pop the direction of the stack */
+        {
+          /* TBD: support overflow isolate count */
+          /* TBD: support isolate count == 0 */
+          for (i = RL_LEN (pp); i; i--)
+            {
+              POP_STATUS;
+              valid_isolate_count--;
+            }
+	  RL_LEVEL (pp) = level;
+        }
+      else if (FRIBIDI_IS_ISOLATE(this_type))
+        {
+          /* TBD support RL_LEN > 1 */
+          new_override = FRIBIDI_TYPE_ON;
+          isolate = 1;
+          if (this_type == FRIBIDI_TYPE_LRI)
+            new_level = level + 2 - (level%2);
+          else if (this_type == FRIBIDI_TYPE_RLI)
+            new_level = level + 1 + (level%2);
+          else if (this_type == FRIBIDI_TYPE_FSI)
+            {
+              /* Search for a local strong character until we
+                 meet the corresponding PDI or the end of the
+                 paragraph */
+              FriBidiRun *fsi_pp;
+              int isolate_count = 0;
+              int fsi_base_level = -1;
+              for_run_list (fsi_pp, pp)
+                {
+                  if (RL_TYPE(fsi_pp) == FRIBIDI_TYPE_PDI)
+                    {
+                      isolate_count--;
+                      if (valid_isolate_count < 0)
+                        break;
+                    }
+                  else if (FRIBIDI_IS_ISOLATE(RL_TYPE(fsi_pp)))
+                    isolate_count++;
+                  else if (isolate_count==0 && FRIBIDI_IS_LETTER (RL_TYPE (fsi_pp)))
+                    {
+                      fsi_base_level = FRIBIDI_DIR_TO_LEVEL (RL_TYPE (fsi_pp));
+                      break;
+                    }
+                }
+
+              /* What to do if there is no strong character found?
+                 Just isolate. */
+              if (fsi_base_level < 0)
+                new_level = level + 2;
+              else
+                {
+                  /* Same behavior like RLI and LRI above */
+                  if (FRIBIDI_LEVEL_IS_RTL (fsi_base_level))
+                    new_level = level + 1 + (level%2);
+                  else
+                    new_level = level + 2 - (level%2);
+                }
+            }
+
+	  RL_LEVEL (pp) = level;
+          for (i = RL_LEN (pp); i; i--)
+            {
+              valid_isolate_count++;
+              PUSH_STATUS;
+            }
+        }
       else if (this_type == FRIBIDI_TYPE_BS)
 	{
 	  /* X8. All explicit directional embeddings and overrides are
