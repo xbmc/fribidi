@@ -61,10 +61,10 @@ extern const char *fribidi_unicode_version;
 #define FRIBIDI_BIDI_NUM_TYPES			19
 
 /* The maximum embedding level value assigned by explicit marks */
-#define FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL		61
-/* The maximum *number* of different resolved embedding levels: 0-62 */
-#define FRIBIDI_BIDI_MAX_RESOLVED_LEVELS	63
+#define FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL		125
 
+/* The maximum *number* of different resolved embedding levels: 0-127 */
+#define FRIBIDI_BIDI_MAX_RESOLVED_LEVELS	127
 
 /* A few Unicode characters: */
 

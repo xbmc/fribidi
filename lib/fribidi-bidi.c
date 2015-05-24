@@ -220,20 +220,23 @@ print_bidi_string (
 /* There are a few little points in pushing into and poping from the status
    stack:
    1. when the embedding level is not valid (more than
-   FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL=61), you must reject it, and not to push
+   FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL=125), you must reject it, and not to push
    into the stack, but when you see a PDF, you must find the matching code,
    and if it was pushed in the stack, pop it, it means you must pop if and
    only if you have pushed the matching code, the over_pushed var counts the
    number of rejected codes so far.
+
    2. there's a more confusing point too, when the embedding level is exactly
-   FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL-1=60, an LRO or LRE is rejected
-   because the new level would be FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL+1=62, that
-   is invalid; but an RLO or RLE is accepted because the new level is
-   FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL=61, that is valid, so the rejected codes
+   FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL-1=124, an LRO, LRE, or LRI is rejected
+   because the new level would be FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL+1=126, that
+   is invalid; but an RLO, RLE, or RLI is accepted because the new level is
+   FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL=125, that is valid, so the rejected codes
    may be not continuous in the logical order, in fact there are at most two
-   continuous intervals of codes, with an RLO or RLE between them.  To support
-   this case, the first_interval var counts the number of rejected codes in
-   the first interval, when it is 0, means that there is only one interval.
+   continuous intervals of codes, with an RLO, RLE, or RLI between them.  To
+   support this case, the first_interval var counts the number of rejected
+   codes in the first interval, when it is 0, means that there is only one
+   interval.
+
 */
 
 /* a. If this new level would be valid, then this embedding code is valid.
@@ -245,7 +248,7 @@ print_bidi_string (
 */
 #define PUSH_STATUS \
     FRIBIDI_BEGIN_STMT \
-      if LIKELY(new_level <= FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL) \
+      if LIKELY(new_level <= FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL)                               \
         { \
           if UNLIKELY(level == FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL - 1) \
             first_interval = over_pushed; \
@@ -255,7 +258,7 @@ print_bidi_string (
           stack_size++; \
           level = new_level; \
           override = new_override; \
-        } else \
+        } else if LIKELY(isolate_overflow == 0) \
 	  over_pushed++; \
     FRIBIDI_END_STMT
 
@@ -404,6 +407,7 @@ fribidi_get_par_embedding_levels (
     FriBidiStrIndex i;
     int stack_size, over_pushed, first_interval;
     int valid_isolate_count = 0;
+    int isolate_overflow = 0;
     int isolate = 0; /* The isolate status flag */
     struct
     {
@@ -435,6 +439,7 @@ fribidi_get_par_embedding_levels (
     over_pushed = 0;
     first_interval = 0;
     valid_isolate_count = 0;
+    isolate_overflow = 0;
     status_stack = fribidi_malloc (sizeof (status_stack[0]) *
 				   FRIBIDI_BIDI_MAX_RESOLVED_LEVELS);
 
@@ -456,7 +461,6 @@ fribidi_get_par_embedding_levels (
 	      /*   X5. With each LRO, compute the least greater even
 	         embedding level. */
 	      new_override = FRIBIDI_EXPLICIT_TO_OVERRIDE_DIR (this_type);
-              isolate=0;
 	      for (i = RL_LEN (pp); i; i--)
 		{
 		  new_level =
@@ -488,8 +492,13 @@ fribidi_get_par_embedding_levels (
           /* TBD: support isolate count == 0 */
           for (i = RL_LEN (pp); i; i--)
             {
-              POP_STATUS;
-              valid_isolate_count--;
+              if (isolate_overflow > 0)
+                isolate_overflow--;
+              else
+                {
+                  POP_STATUS;
+                  valid_isolate_count--;
+                }
             }
 	  RL_LEVEL (pp) = level;
         }
@@ -544,8 +553,13 @@ fribidi_get_par_embedding_levels (
 	  RL_LEVEL (pp) = level;
           for (i = RL_LEN (pp); i; i--)
             {
-              valid_isolate_count++;
-              PUSH_STATUS;
+              if (new_level <= FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL)
+                {
+                  valid_isolate_count++;
+                  PUSH_STATUS;
+                }
+              else
+                isolate_overflow += 1;
             }
         }
       else if (this_type == FRIBIDI_TYPE_BS)

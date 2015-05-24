@@ -64,7 +64,7 @@ _FRIBIDI_ADD_TYPE (PDF, '-')	/* Pop Directional Flag */
 _FRIBIDI_ADD_TYPE (LRI, '+')	/* Left-to-Right Isolate */
 _FRIBIDI_ADD_TYPE (RLI, '+')	/* Right-to-Left Isolate */
 _FRIBIDI_ADD_TYPE (FSI, '+')	/* First-Strong Isolate */
-_FRIBIDI_ADD_TYPE (PDI, '+')	/* Pop Directional Isolate */
+_FRIBIDI_ADD_TYPE (PDI, '-')	/* Pop Directional Isolate */
 
 #if defined(_FRIBIDI_ADD_ALIAS)
 _FRIBIDI_ADD_ALIAS (L, LTR)
