@@ -179,7 +179,8 @@ run_list_encode_bidi_types (
   for (i = 0; i < len; i++)
     {
       register FriBidiCharType char_type = bidi_types[i];
-      if (char_type != last->type)
+      if (char_type != last->type
+          || FRIBIDI_IS_ISOLATE(char_type))
 	{
 	  run = new_run ();
 	  if UNLIKELY

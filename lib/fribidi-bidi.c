@@ -376,7 +376,11 @@ fribidi_get_par_embedding_levels (
       for_run_list (pp, main_run_list)
         {
           if (RL_TYPE(pp) == FRIBIDI_TYPE_PDI)
-            valid_isolate_count--;
+            {
+              /* Ignore if there is no matching isolate */
+              if (valid_isolate_count>0)
+                valid_isolate_count--;
+            }
           else if (FRIBIDI_IS_ISOLATE(RL_TYPE(pp)))
             valid_isolate_count++;
           else if (valid_isolate_count==0 && FRIBIDI_IS_LETTER (RL_TYPE (pp)))
@@ -430,7 +434,7 @@ fribidi_get_par_embedding_levels (
        and directional isolate status to false.
 
        Process each character iteratively, applying rules X2 through X8.
-       Only embedding levels from 0 to 61 are valid in this phase. */
+       Only embedding levels from 0 to 123 are valid in this phase. */
 
     level = base_level;
     override = FRIBIDI_TYPE_ON;
@@ -466,6 +470,7 @@ fribidi_get_par_embedding_levels (
 		  new_level =
 		    ((level + FRIBIDI_DIR_TO_LEVEL (this_type) + 2) & ~1) -
 		    FRIBIDI_DIR_TO_LEVEL (this_type);
+                  isolate = 0;
 		  PUSH_STATUS;
 		}
 	    }
@@ -474,8 +479,9 @@ fribidi_get_par_embedding_levels (
 	      /* 3. Terminating Embeddings and overrides */
 	      /*   X7. With each PDF, determine the matching embedding or
 	         override code. */
-	      for (i = RL_LEN (pp); i; i--)
-		POP_STATUS;
+              if (isolate == 0)
+                for (i = RL_LEN (pp); i; i--)
+                  POP_STATUS;
 	    }
 
 	  /* X9. Remove all RLE, LRE, RLO, LRO, PDF, and BN codes. */
@@ -494,7 +500,7 @@ fribidi_get_par_embedding_levels (
             {
               if (isolate_overflow > 0)
                 isolate_overflow--;
-              else
+              else if (valid_isolate_count > 0)
                 {
                   POP_STATUS;
                   valid_isolate_count--;
@@ -518,7 +524,7 @@ fribidi_get_par_embedding_levels (
                  paragraph */
               FriBidiRun *fsi_pp;
               int isolate_count = 0;
-              int fsi_base_level = -1;
+              int fsi_base_level = 0;
               for_run_list (fsi_pp, pp)
                 {
                   if (RL_TYPE(fsi_pp) == FRIBIDI_TYPE_PDI)
@@ -536,31 +542,22 @@ fribidi_get_par_embedding_levels (
                     }
                 }
 
-              /* What to do if there is no strong character found?
-                 Just isolate. */
-              if (fsi_base_level < 0)
-                new_level = level + 2;
+              /* Same behavior like RLI and LRI above */
+              if (FRIBIDI_LEVEL_IS_RTL (fsi_base_level))
+                new_level = level + 1 + (level%2);
               else
-                {
-                  /* Same behavior like RLI and LRI above */
-                  if (FRIBIDI_LEVEL_IS_RTL (fsi_base_level))
-                    new_level = level + 1 + (level%2);
-                  else
-                    new_level = level + 2 - (level%2);
-                }
+                new_level = level + 2 - (level%2);
             }
 
 	  RL_LEVEL (pp) = level;
-          for (i = RL_LEN (pp); i; i--)
+          if (new_level <= FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL)
             {
-              if (new_level <= FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL)
-                {
-                  valid_isolate_count++;
-                  PUSH_STATUS;
-                }
-              else
-                isolate_overflow += 1;
+              valid_isolate_count++;
+              PUSH_STATUS;
+              level = new_level;
             }
+          else
+            isolate_overflow += 1;
         }
       else if (this_type == FRIBIDI_TYPE_BS)
 	{
@@ -754,7 +751,10 @@ fribidi_get_par_embedding_levels (
   DBG ("resolving neutral types");
   {
     /* N1. and N2.
-       For each neutral, resolve it. */
+       For each neutral, resolve it.
+
+       TBDov: This must be done one isolating run at a time!
+    */
     for_run_list (pp, main_run_list)
     {
       FriBidiCharType prev_type, this_type, next_type;
@@ -763,7 +763,9 @@ fribidi_get_par_embedding_levels (
          FRIBIDI_CHANGE_NUMBER_TO_RTL does this. */
       this_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (RL_TYPE (pp));
       prev_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (PREV_TYPE_OR_SOR (pp));
-      next_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (NEXT_TYPE_OR_EOR (pp));
+
+      next_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (
+                                                NEXT_TYPE_OR_EOR (pp));
 
       if (FRIBIDI_IS_NEUTRAL (this_type))
 	RL_TYPE (pp) = (prev_type == next_type) ?
@@ -864,7 +866,9 @@ fribidi_get_par_embedding_levels (
        1. segment separators,
        2. paragraph separators,
        3. any sequence of whitespace characters preceding a segment
-       separator or paragraph separator, and
+          separator or paragraph separator, and
+       4. any sequence of whitespace characters and/or isolate formatting
+          characters at the end of the line.
        ... (to be continued in fribidi_reorder_line()). */
     list = new_run_list ();
     if UNLIKELY
@@ -884,8 +888,9 @@ fribidi_get_par_embedding_levels (
 	    state = 1;
 	    pos = j;
 	  }
-	else if (state && !FRIBIDI_IS_EXPLICIT_OR_SEPARATOR_OR_BN_OR_WS
-		 (char_type))
+	else if (state &&
+                 !(FRIBIDI_IS_EXPLICIT_OR_SEPARATOR_OR_BN_OR_WS(char_type)
+                   || FRIBIDI_IS_ISOLATE(char_type)))
 	  {
 	    state = 0;
 	    p = new_run ();

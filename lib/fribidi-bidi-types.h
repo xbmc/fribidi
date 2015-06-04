@@ -181,7 +181,7 @@ typedef signed char FriBidiLevel;
                                 | FRIBIDI_MASK_ISOLATE | FRIBIDI_MASK_FIRST  )
 
 /* Pop Directional Isolate*/
-#define FRIBIDI_TYPE_PDI_VAL	( FRIBIDI_MASK_WEAK | FRIBIDI_MASK_ISOLATE)
+#define FRIBIDI_TYPE_PDI_VAL	( FRIBIDI_MASK_NEUTRAL | FRIBIDI_MASK_WEAK | FRIBIDI_MASK_ISOLATE)
 
 /* Define Enums only if sizeof(int) == 4 (UTF-32), and not compiling C++.
  * The problem with C++ is that then casts between int32 and enum will fail!
