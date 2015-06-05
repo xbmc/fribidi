@@ -43,6 +43,8 @@
 #include "bidi-types.h"
 #include "run.h"
 
+#define DEBUG 1
+
 /*
  * This file implements most of Unicode Standard Annex #9, Tracking Number 13.
  */
@@ -253,6 +255,7 @@ print_bidi_string (
           if UNLIKELY(level == FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL - 1) \
             first_interval = over_pushed; \
           status_stack[stack_size].level = level; \
+          status_stack[stack_size].isolate_level = isolate_level; \
           status_stack[stack_size].isolate = isolate; \
           status_stack[stack_size].override = override; \
           stack_size++; \
@@ -279,6 +282,7 @@ print_bidi_string (
             level = status_stack[stack_size].level; \
             override = status_stack[stack_size].override; \
             isolate = status_stack[stack_size].isolate; \
+            isolate_level = status_stack[stack_size].isolate_level; \
           } \
       } \
     FRIBIDI_END_STMT
@@ -407,6 +411,7 @@ fribidi_get_par_embedding_levels (
   DBG ("explicit levels and directions");
   {
     FriBidiLevel level, new_level;
+    int isolate_level = 0;
     FriBidiCharType override, new_override;
     FriBidiStrIndex i;
     int stack_size, over_pushed, first_interval;
@@ -418,6 +423,7 @@ fribidi_get_par_embedding_levels (
       FriBidiCharType override;	/* only LTR, RTL and ON are valid */
       FriBidiLevel level;
       int isolate;
+      int isolate_level;
     } *status_stack;
     FriBidiRun temp_link;
 
@@ -450,6 +456,8 @@ fribidi_get_par_embedding_levels (
     for_run_list (pp, main_run_list)
     {
       FriBidiCharType this_type = RL_TYPE (pp);
+      RL_ISOLATE_LEVEL (pp) = isolate_level;
+
       if (FRIBIDI_IS_EXPLICIT_OR_BN (this_type))
 	{
 	  if (FRIBIDI_IS_STRONG (this_type))
@@ -494,15 +502,19 @@ fribidi_get_par_embedding_levels (
       else if (this_type == FRIBIDI_TYPE_PDI)
         /* X6a. pop the direction of the stack */
         {
-          /* TBD: support overflow isolate count */
-          /* TBD: support isolate count == 0 */
           for (i = RL_LEN (pp); i; i--)
             {
               if (isolate_overflow > 0)
                 isolate_overflow--;
               else if (valid_isolate_count > 0)
                 {
+                  /* Pop away all LRE,RLE,LRO, RLO levels
+                     from the stack, as these are implicitly
+                     terminated by the PDI */
+                  while (stack_size && !status_stack[stack_size-1].isolate)
+                    POP_STATUS;
                   POP_STATUS;
+                  isolate_level-- ;
                   valid_isolate_count--;
                 }
             }
@@ -513,6 +525,7 @@ fribidi_get_par_embedding_levels (
           /* TBD support RL_LEN > 1 */
           new_override = FRIBIDI_TYPE_ON;
           isolate = 1;
+          isolate_level++;
           if (this_type == FRIBIDI_TYPE_LRI)
             new_level = level + 2 - (level%2);
           else if (this_type == FRIBIDI_TYPE_RLI)
@@ -550,6 +563,7 @@ fribidi_get_par_embedding_levels (
             }
 
 	  RL_LEVEL (pp) = level;
+          RL_ISOLATE_LEVEL (pp) = isolate_level;
           if (new_level <= FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL)
             {
               valid_isolate_count++;
@@ -623,9 +637,31 @@ fribidi_get_par_embedding_levels (
     {
       register FriBidiCharType prev_type, this_type, next_type;
 
-      prev_type = PREV_TYPE_OR_SOR (pp);
       this_type = RL_TYPE (pp);
+
+      /*
+      prev_type = PREV_TYPE_OR_SOR (pp);
       next_type = NEXT_TYPE_OR_EOR (pp);
+      */
+
+      FriBidiRun *ppp_prev = pp->prev;
+      while(ppp_prev)
+        {
+          if (ppp_prev->isolate_level <= pp->isolate_level)
+            break;
+          ppp_prev=ppp_prev->prev;
+        }
+      prev_type = RL_TYPE (ppp_prev);
+
+      FriBidiRun *ppp_next = pp->next;
+      while(ppp_next)
+        {
+          if (ppp_next->isolate_level <= pp->isolate_level)
+            break;
+          ppp_next=ppp_next->next;
+        }
+
+      next_type = RL_TYPE(ppp_next);
 
       if (FRIBIDI_IS_STRONG (prev_type))
 	last_strong = prev_type;
@@ -641,12 +677,17 @@ fribidi_get_par_embedding_levels (
       if (this_type == FRIBIDI_TYPE_NSM)
 	{
 	  if (RL_LEVEL (pp->prev) == RL_LEVEL (pp))
-	    pp = merge_with_prev (pp);
+            {
+              if (ppp_prev == pp->prev)
+                pp = merge_with_prev (pp);
+            }
 	  else
 	    RL_TYPE (pp) = prev_type;
+
 	  if (prev_type == next_type && RL_LEVEL (pp) == RL_LEVEL (pp->next))
 	    {
-	      pp = merge_with_prev (pp->next);
+              if (ppp_next == pp->next)
+                pp = merge_with_prev (pp->next);
 	    }
 	  continue;		/* As we know the next condition cannot be true. */
 	}
@@ -659,7 +700,7 @@ fribidi_get_par_embedding_levels (
 	  /* Resolving dependency of loops for rules W1 and W2, so we
 	     can merge them in one loop. */
 	  if (next_type == FRIBIDI_TYPE_NSM)
-	    RL_TYPE (pp->next) = FRIBIDI_TYPE_AN;
+	    RL_TYPE (ppp_next) = FRIBIDI_TYPE_AN;
 	}
     }
 
@@ -678,10 +719,32 @@ fribidi_get_par_embedding_levels (
     {
       register FriBidiCharType prev_type, this_type, next_type;
 
-      prev_type = PREV_TYPE_OR_SOR (pp);
       this_type = RL_TYPE (pp);
-      next_type = NEXT_TYPE_OR_EOR (pp);
 
+
+      FriBidiRun *ppp = pp->prev;
+      while(ppp)
+        {
+          if (ppp->isolate_level <= pp->isolate_level)
+            break;
+          ppp=ppp->prev;
+        }
+      prev_type = RL_TYPE(ppp);
+
+      ppp = pp->next;
+      while(ppp)
+        {
+          if (ppp->isolate_level <= pp->isolate_level)
+            break;
+          ppp=ppp->next;
+        }
+
+      next_type = RL_TYPE(ppp);
+
+      /*
+      prev_type = PREV_TYPE_OR_SOR (pp);
+      next_type = NEXT_TYPE_OR_EOR (pp);
+      */
       if (FRIBIDI_IS_STRONG (prev_type))
 	last_strong = prev_type;
 
@@ -762,12 +825,46 @@ fribidi_get_par_embedding_levels (
       /* "European and Arabic numbers are treated as though they were R"
          FRIBIDI_CHANGE_NUMBER_TO_RTL does this. */
       this_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (RL_TYPE (pp));
-      prev_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (PREV_TYPE_OR_SOR (pp));
 
-      next_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (
-                                                NEXT_TYPE_OR_EOR (pp));
+      /* To test for adjacency we have to skip runs with a higher
+         isolate level, as these are not supposed to have any
+         influence outside of the isolation. This is currently done by
+         looping forward and backward until we find a an isolation
+         level lower or equal to the current one.
 
-      if (FRIBIDI_IS_NEUTRAL (this_type))
+         A more efficient implementation would be to encode
+         isolate adjacency by prev_isolate and next_isolate
+         pointers.
+      */
+      FriBidiRun *ppp = pp->prev;
+      while(ppp)
+        {
+          if (ppp->isolate_level <= pp->isolate_level)
+            break;
+          ppp=ppp->prev;
+        }
+      if (RL_LEVEL(ppp) == RL_LEVEL(pp))
+        prev_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (RL_TYPE(ppp));
+      else
+        prev_type = FRIBIDI_LEVEL_TO_DIR(MAX(RL_LEVEL(ppp), RL_LEVEL(pp)));
+
+      ppp = pp->next;
+      while(ppp)
+        {
+          if (ppp->isolate_level <= pp->isolate_level)
+            break;
+          ppp=ppp->next;
+        }
+
+      if (RL_LEVEL(ppp) == RL_LEVEL(pp))
+        next_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (RL_TYPE(ppp));
+      else
+        next_type = FRIBIDI_LEVEL_TO_DIR(MAX(RL_LEVEL(ppp), RL_LEVEL(pp)));
+
+      if (this_type == FRIBIDI_TYPE_PDI)
+        RL_TYPE (pp) = FRIBIDI_EMBEDDING_DIRECTION (pp);
+
+      else if (FRIBIDI_IS_NEUTRAL (this_type))
 	RL_TYPE (pp) = (prev_type == next_type) ?
 	  /* N1. */ prev_type :
 	  /* N2. */ FRIBIDI_EMBEDDING_DIRECTION (pp);

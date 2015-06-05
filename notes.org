@@ -1,0 +1,75 @@
+#+STARTUP: hidestars showall
+* <2014-03-08 Sat>
+** Running a test of the new features
+#+BEGIN_SRC sh
+cd test
+../bin/fribidi --charset CapRTL test_CapRTL_isolate.input
+#+END_SRC
+   - No link to gen-bidi-type-tab .
+* <2014-03-16 Sun>
+** Running more extensive tests
+#+BEGIN_SRC sh
+../bin/fribidi --basedir --showinput --levels --charset CapRTL test_CapRTL_isolate.input
+#+END_SRC
+* <2015-05-24 Sun>
+** Issues not covered in my current implementation
+   - In X2 and X3. Deal with overflow isolate count.
+   - Terminology
+     | Fribidi       | Unicode document         |
+     |---------------+--------------------------|
+     |               | overflow isolate count   |
+     | ~over_pushed~ | overflow embedding count |
+     | ~isolate~     | valid isolate count      |
+* <2015-05-29 Fri>
+** Comparing with the bidi ref test
+The following scenario was used for comparing with the bidi reference
+ - Download and compile the bidiref test with the following SConstruct file in ~.../BidiReferenceC/6.3.0/source~:
+#+BEGIN_SRC python
+import glob
+
+env = Environment(CPPFLAGS=['-Wall','-g'],
+                  CPPPATH=['../include'])
+
+env.Program('bidiref',
+            glob.glob('*.c'))
+#+END_SRC
+ - Run test suite on fribidi with:
+#+BEGIN_SRC sh
+cd ../fribidi-vs-unicode
+./test BidiTest.txt | head -20
+#+END_SRC
+  - Create a file ~BidiTestSmall.txt~ that only contain the failing test. E.g.:
+#+BEGIN_EXAMPLE
+@Levels:	0 x x 1
+@Reorder:	0 3
+RLI LRE PDF R; 3
+#+END_EXAMPLE
+  - Run the bidiref test on this single test with:
+#+BEGIN_SRC sh
+./bidiref -d4 -x BidiTestSmall.txt
+#+END_SRC
+  - Note that bidiref contains magic to recognize the unicode file format only if the input file name contains the string "BidiTest".
+  - An example failing run for fribidi is:
+#+BEGIN_EXAMPLE
+> ./test b.txt
+failure on line 4
+input is: RLI LRE PDF R; 3
+base dir: auto
+expected levels: 0 x x 1
+returned levels: 0 0 0 3
+expected order: 0 3
+returned order: 0 3
+#+END_EXAMPLE
+  - Goal is to debug, compare, and fix all ~BidiTestSmall.txt~ until the entire file passes.
+** Errors
+   - [X] Line 63038: RLI LRE PDF R; 3
+   - [ ] Line 66856: R RLI R  .
+*** R RLI R
+    - Expected levels vs fribidi levels: 1 0 1 vs 1 1 1
+    - Don't understand the difference between the embedding level and the paragraph embedding level.
+    - How can a level be lower than the paragraph level?
+* <2015-05-31 Sun>
+** Regarding R RLI R
+   - The problem is that N1 and N2 are done over isolating boundaries. This needs to be fixed! Either by remembering the isolating sequence level of each run and make sure to connect only runs of the same level, or alternatively to always sweep and count. Both of these solutions are slow as they require sweeping over inner runs. A faster solution would be to have a pointer to the next run of the same sequence. Can this be done efficiently?
+* <2015-06-05 Fri>
+  - [ ] make macros ~PREV_TYPE_SKIP_ISOLATE~ and ~NEXT_TYPE_SKIP_ISOLATE~ macros based on the code in N1.
