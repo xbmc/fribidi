@@ -73,3 +73,33 @@ returned order: 0 3
    - The problem is that N1 and N2 are done over isolating boundaries. This needs to be fixed! Either by remembering the isolating sequence level of each run and make sure to connect only runs of the same level, or alternatively to always sweep and count. Both of these solutions are slow as they require sweeping over inner runs. A faster solution would be to have a pointer to the next run of the same sequence. Can this be done efficiently?
 * <2015-06-05 Fri>
   - [ ] make macros ~PREV_TYPE_SKIP_ISOLATE~ and ~NEXT_TYPE_SKIP_ISOLATE~ macros based on the code in N1.
+* <2015-06-18 Thu>
+** NSI merging problems
+   - The following ~b.txt~ shows that there is a difference between an isolated NSM and one preceded by an isolating sequence.
+#+BEGIN_EXAMPLE
+@Levels:	1
+@Reorder:	0
+NSM; 4
+
+@Levels:	1 1 1
+@Reorder:	2 1 0
+LRI PDI NSM; 4
+#+END_EXAMPLE
+   - In both these cases, because of the RTL direction, the NSM should get the type of the base direction. This currently does not happen. See TBDov
+* <2015-06-20 Sat>
+** Test progress
+   | Date           | Num fail | First line fail | First fail                                 |
+   |----------------+----------+-----------------+--------------------------------------------|
+   | 2015-06-20 Sat |      139 |          236713 |                                            |
+   |                |       22 |          497052 | R ON FSI L PDI LRI L PDI RLI L PDI ON R; 2 |
+** Thoughts
+   - The quest of finding a single strategy for finding the next and previous types seem to fail. It seems like every rule is looking for something different.
+   - The real problem is that sequences like ~R OL LRI ... PDI OL R~ should really be interpreted as ~R OL OL OL R~ for the algorithm to work. But in contrast to ~R OL OL OL~ that is compacted as ~R OL×3 R~ and which may be matched by a simple forward and backward match, in ~LRI ... PDI~ the right hand R must be found by scanning. This is what Ι tried doing in my changes to fribidi so far, but it failed due to differen needs.
+   - My strategy is first finding a scanning strategy that works, and only afterwards optimizing it.
+* <2015-06-21 Sun>
+** Test progress
+   | Date           | Num fail | First line fail | First fail                                      |
+   |----------------+----------+-----------------+-------------------------------------------------|
+   | 2015-06-21 Sat |       18 |          236713 | AL ON FSI L PDI LRI L PDI RLI R PDI ON ET EN; 2 |
+
+   - Note: I believe this is a bug...
