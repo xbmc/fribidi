@@ -686,16 +686,18 @@ fribidi_get_par_embedding_levels (
   /* 4. Resolving weak types */
   DBG ("resolving weak types");
   {
-    FriBidiCharType last_strong, prev_type_orig;
+    int last_strong_stack[FRIBIDI_BIDI_MAX_RESOLVED_LEVELS];
+    FriBidiCharType prev_type_orig;
     fribidi_boolean w4;
 
-    last_strong = base_dir;
+    last_strong_stack[0] = base_dir;
 
     for_run_list (pp, main_run_list)
     {
       register FriBidiCharType prev_type, this_type, next_type;
 
       this_type = RL_TYPE (pp);
+      int iso_level = RL_ISOLATE_LEVEL(pp);
 
       FriBidiRun *ppp_prev = get_adjacent_run(pp, FALSE, FALSE);
       FriBidiRun *ppp_next = get_adjacent_run(pp, TRUE, FALSE);
@@ -711,7 +713,7 @@ fribidi_get_par_embedding_levels (
         next_type = FRIBIDI_LEVEL_TO_DIR(MAX(RL_LEVEL(ppp_next), RL_LEVEL(pp)));
 
       if (FRIBIDI_IS_STRONG (prev_type))
-	last_strong = prev_type;
+	last_strong_stack[iso_level] = prev_type;
 
       /* W1. NSM
          Examine each non-spacing mark (NSM) in the level run, and change the
@@ -744,7 +746,7 @@ fribidi_get_par_embedding_levels (
 	}
 
       /* W2: European numbers. */
-      if (this_type == FRIBIDI_TYPE_EN && last_strong == FRIBIDI_TYPE_AL)
+      if (this_type == FRIBIDI_TYPE_EN && last_strong_stack[iso_level] == FRIBIDI_TYPE_AL)
 	{
 	  RL_TYPE (pp) = FRIBIDI_TYPE_AN;
 
@@ -756,7 +758,8 @@ fribidi_get_par_embedding_levels (
     }
 
 
-    last_strong = base_dir;
+    last_strong_stack[0] = base_dir;
+
     /* Resolving dependency of loops for rules W4 and W5, W5 may
        want to prevent W4 to take effect in the next turn, do this
        through "w4". */
@@ -767,7 +770,6 @@ fribidi_get_par_embedding_levels (
     prev_type_orig = FRIBIDI_TYPE_ON;
 
     /* Each isolate level has its own memory of the last strong character */
-    int last_strong_stack[FRIBIDI_BIDI_MAX_RESOLVED_LEVELS];
     for_run_list (pp, main_run_list)
     {
       register FriBidiCharType prev_type, this_type, next_type;
