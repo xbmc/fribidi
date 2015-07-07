@@ -43,8 +43,6 @@
 #include "bidi-types.h"
 #include "run.h"
 
-#define DEBUG 1
-
 /*
  * This file implements most of Unicode Standard Annex #9, Tracking Number 13.
  */
@@ -115,6 +113,11 @@ compact_neutrals (
     }
 }
 
+/* Search for an adjacent run in the forward or backward direction.
+   This search is O(n) and thus algorithms using it become O(n^2).
+   The concept should be replaced with isolate adjacent runs in the
+   forward and backward directions.
+ */
 static FriBidiRun *get_adjacent_run(FriBidiRun *list, fribidi_boolean forward, fribidi_boolean skip_neutral)
 {
   FriBidiRun *ppp = forward ? list->next : list->prev;
@@ -125,6 +128,10 @@ static FriBidiRun *get_adjacent_run(FriBidiRun *list, fribidi_boolean forward, f
       if (ppp_type == _FRIBIDI_TYPE_SENTINEL)
         break;
 
+      /* Note that when sweeping forward we continue one run
+         beyond the PDI to see what lies behind. When looking
+         backwards, this is not necessary as the leading isolate
+         run has already been assigned the resolved level. */
       if (ppp->isolate_level > list->isolate_level
           || (forward && ppp_type == FRIBIDI_TYPE_PDI)
           || (skip_neutral && !FRIBIDI_IS_STRONG(ppp_type)))
@@ -136,32 +143,6 @@ static FriBidiRun *get_adjacent_run(FriBidiRun *list, fribidi_boolean forward, f
     }
   return ppp;
 }
-
-#if 0
-static FriBidiCharType *get_last_strong(FriBidiRun *list,
-                                        FriBidiParType base_dir)
-{
-  FriBidiRun *ppp = list->prev;
-  FriBidiCharType last_strong = base_dir;
-  while(ppp)
-    {
-      FriBidiCharType ppp_type = RL_TYPE (ppp);
-
-      if (ppp_type == _FRIBIDI_TYPE_SENTINEL)
-        break;
-
-      if (ppp->isolate_level > list->isolate_level
-          || FRIBIDI_IS_NEUTRAL(ppp_type))
-        {
-          last_strong = ...;
-          ppp = forward ? ppp->next : ppp->prev;
-          continue;
-        }
-      break;
-    }
-  return last_strong;
-}
-#endif
 
 #if DEBUG+0
 /*======================================================================
@@ -181,6 +162,8 @@ static char char_from_level_array[] = {
   'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N',
   'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
   'Y', 'Z',
+
+  /* TBD - insert another 125-64 levels */
 
   '@',				/* 62 == only must appear after resolving
 				 * implicits. */
@@ -298,7 +281,7 @@ print_bidi_string (
 */
 #define PUSH_STATUS \
     FRIBIDI_BEGIN_STMT \
-      if LIKELY(new_level <= FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL)                               \
+      if LIKELY(new_level <= FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL) \
         { \
           if UNLIKELY(level == FRIBIDI_BIDI_MAX_EXPLICIT_LEVEL - 1) \
             first_interval = over_pushed; \
@@ -537,7 +520,7 @@ fribidi_get_par_embedding_levels (
 	         override code. */
               for (i = RL_LEN (pp); i; i--)
                 {
-                  if (stack_size && status_stack[stack_size-1].isolate!=0)
+                  if (stack_size && status_stack[stack_size-1].isolate != 0)
                     break;
                   POP_STATUS;
                 }
@@ -686,21 +669,25 @@ fribidi_get_par_embedding_levels (
   /* 4. Resolving weak types */
   DBG ("resolving weak types");
   {
-    int last_strong_stack[FRIBIDI_BIDI_MAX_RESOLVED_LEVELS];
+    int *last_strong_stack;
     FriBidiCharType prev_type_orig;
     fribidi_boolean w4;
 
+    last_strong_stack = fribidi_malloc (sizeof (int)
+                                        * FRIBIDI_BIDI_MAX_RESOLVED_LEVELS);
     last_strong_stack[0] = base_dir;
 
     for_run_list (pp, main_run_list)
     {
       register FriBidiCharType prev_type, this_type, next_type;
+      FriBidiRun *ppp_prev, *ppp_next;
+      int iso_level;
+
+      ppp_prev = get_adjacent_run(pp, FALSE, FALSE);
+      ppp_next = get_adjacent_run(pp, TRUE, FALSE);
 
       this_type = RL_TYPE (pp);
-      int iso_level = RL_ISOLATE_LEVEL(pp);
-
-      FriBidiRun *ppp_prev = get_adjacent_run(pp, FALSE, FALSE);
-      FriBidiRun *ppp_next = get_adjacent_run(pp, TRUE, FALSE);
+      iso_level = RL_ISOLATE_LEVEL(pp);
 
       if (RL_LEVEL(ppp_prev) == RL_LEVEL(pp))
         prev_type = RL_TYPE(ppp_prev);
@@ -773,12 +760,14 @@ fribidi_get_par_embedding_levels (
     for_run_list (pp, main_run_list)
     {
       register FriBidiCharType prev_type, this_type, next_type;
+      int iso_level;
+      FriBidiRun *ppp_prev, *ppp_next;
 
       this_type = RL_TYPE (pp);
-      int iso_level = RL_ISOLATE_LEVEL(pp);
+      iso_level = RL_ISOLATE_LEVEL(pp);
 
-      FriBidiRun *ppp_prev = get_adjacent_run(pp, FALSE, FALSE);
-      FriBidiRun *ppp_next = get_adjacent_run(pp, TRUE, FALSE);
+      ppp_prev = get_adjacent_run(pp, FALSE, FALSE);
+      ppp_next = get_adjacent_run(pp, TRUE, FALSE);
 
       if (RL_LEVEL(ppp_prev) == RL_LEVEL(pp))
         prev_type = RL_TYPE(ppp_prev);
@@ -842,6 +831,8 @@ fribidi_get_par_embedding_levels (
       else
 	prev_type_orig = PREV_TYPE_OR_SOR (pp->next);
     }
+
+    fribidi_free (last_strong_stack);
   }
 
   compact_neutrals (main_run_list);
@@ -866,23 +857,14 @@ fribidi_get_par_embedding_levels (
     for_run_list (pp, main_run_list)
     {
       FriBidiCharType prev_type, this_type, next_type;
+      FriBidiRun *ppp_prev, *ppp_next;
+
+      ppp_prev = get_adjacent_run(pp, FALSE, FALSE);
+      ppp_next = get_adjacent_run(pp, TRUE, FALSE);
 
       /* "European and Arabic numbers are treated as though they were R"
          FRIBIDI_CHANGE_NUMBER_TO_RTL does this. */
       this_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (RL_TYPE (pp));
-
-      /* To test for adjacency we have to skip runs with a higher
-         isolate level, as these are not supposed to have any
-         influence outside of the isolation. This is currently done by
-         looping forward and backward until we find a an isolation
-         level lower or equal to the current one.
-
-         A more efficient implementation would be to encode
-         isolate adjacency by prev_isolate and next_isolate
-         pointers.
-      */
-      FriBidiRun *ppp_prev = get_adjacent_run(pp, FALSE, FALSE);
-      FriBidiRun *ppp_next = get_adjacent_run(pp, TRUE, FALSE);
 
       if (RL_LEVEL(ppp_prev) == RL_LEVEL(pp))
         prev_type = FRIBIDI_CHANGE_NUMBER_TO_RTL (RL_TYPE(ppp_prev));
