@@ -10,6 +10,6 @@
 #
 
 This directory contains final data files
-for the Unicode Character Database (UCD) for Unicode 6.2.0.
+for the Unicode Character Database (UCD) for Version 6.2.0.
 
 

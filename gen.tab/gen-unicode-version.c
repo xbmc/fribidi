@@ -34,20 +34,10 @@
 #include <common.h>
 
 #include <stdio.h>
-#if STDC_HEADERS+0
 # include <stdlib.h>
 # include <stddef.h>
-#else
-# if HAVE_STDLIB_H
-#  include <stdlib.h>
-# endif
-#endif
-#if HAVE_STRING_H+0
-# if !STDC_HEADERS && HAVE_MEMORY_H
 #  include <memory.h>
-# endif
 # include <string.h>
-#endif
 #if HAVE_STRINGS_H+0
 # include <strings.h>
 #endif
