@@ -143,8 +143,11 @@ add_library(fribidi STATIC
   lib/joining-types.h
   lib/run.h
   )
-target_include_directories(fribidi PUBLIC
+target_include_directories(fribidi
+  PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
+  INTERFACE
+  $<INSTALL_INTERFACE:include/fribidi>
 )
 add_dependencies(fribidi
   gen-unicode
@@ -154,3 +157,54 @@ add_dependencies(fribidi
   # gen-derived-bidi-type
   gen-bidi-type
   )
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/fribidi-config-version.cmake
+  VERSION ${FRIBIDI_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
+
+install(TARGETS fribidi EXPORT fribidi
+  RUNTIME DESTINATION bin
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib)
+
+
+install(FILES
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-arabic.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-begindecls.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-bidi.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-bidi-types.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-bidi-types-list.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-common.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-config.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-deprecated.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-enddecls.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-flags.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-joining.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-joining-types.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-joining-types-list.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-mirroring.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-shape.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-types.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-unicode.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/lib/fribidi-unicode-version.h
+  DESTINATION include/fribidi)
+
+install(EXPORT fribidi
+  FILE
+    fribidi.cmake
+  NAMESPACE
+    fribidi::
+  DESTINATION
+    lib/cmake/fribidi
+)
+install(
+  FILES
+    cmake/fribidi-config.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/fribidi-config-version.cmake
+  DESTINATION
+    lib/cmake/fribidi
+)
