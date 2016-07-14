@@ -99,7 +99,7 @@
 
 
 
-#include <fribidi-bidi-types.h>
+#include "fribidi-bidi-types.h"
 
 #define fribidi_debug_status FRIBIDI_NAMESPACE(debug_status)
 FRIBIDI_ENTRY int fribidi_debug_status (

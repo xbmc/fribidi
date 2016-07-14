@@ -28,6 +28,12 @@ add_executable(gen-unicode-version
 target_include_directories(gen-unicode-version PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
 )
+
+target_compile_definitions(gen-unicode-version
+  PRIVATE
+  _CRT_SECURE_NO_WARNINGS
+  _CRT_NONSTDC_NO_DEPRECATE
+)
 add_custom_target(gen-unicode
   COMMAND gen-unicode-version
   ${CMAKE_CURRENT_SOURCE_DIR}/gen.tab/unidata/ReadMe.txt >
@@ -42,6 +48,11 @@ add_executable(gen-bidi-type-tab
   gen.tab/packtab.c)
 target_include_directories(gen-bidi-type-tab PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
+)
+target_compile_definitions(gen-bidi-type-tab
+  PRIVATE
+  _CRT_SECURE_NO_WARNINGS
+  _CRT_NONSTDC_NO_DEPRECATE
 )
 add_dependencies(gen-bidi-type-tab gen-unicode)
 
@@ -68,6 +79,11 @@ add_executable(gen-joining-type-tab
 target_include_directories(gen-joining-type-tab PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
 )
+target_compile_definitions(gen-joining-type-tab
+  PRIVATE
+  _CRT_SECURE_NO_WARNINGS
+  _CRT_NONSTDC_NO_DEPRECATE
+)
 add_dependencies(gen-joining-type-tab gen-unicode)
 
 add_custom_target(gen-joining-type
@@ -82,6 +98,11 @@ add_executable(gen-arabic-shaping-tab
   gen.tab/gen-arabic-shaping-tab.c)
 target_include_directories(gen-arabic-shaping-tab PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
+)
+target_compile_definitions(gen-arabic-shaping-tab
+  PRIVATE
+  _CRT_SECURE_NO_WARNINGS
+  _CRT_NONSTDC_NO_DEPRECATE
 )
 add_dependencies(gen-arabic-shaping-tab gen-unicode)
 
@@ -98,6 +119,11 @@ add_executable(gen-mirroring-tab
   gen.tab/gen-mirroring-tab.c)
 target_include_directories(gen-mirroring-tab PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
+)
+target_compile_definitions(gen-mirroring-tab
+  PRIVATE
+  _CRT_SECURE_NO_WARNINGS
+  _CRT_NONSTDC_NO_DEPRECATE
 )
 add_dependencies(gen-mirroring-tab gen-unicode)
 
@@ -148,6 +174,11 @@ target_include_directories(fribidi
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
   INTERFACE
   $<INSTALL_INTERFACE:include/fribidi>
+)
+target_compile_definitions(fribidi
+  PRIVATE
+  _CRT_SECURE_NO_WARNINGS
+  _CRT_NONSTDC_NO_DEPRECATE
 )
 add_dependencies(fribidi
   gen-unicode
