@@ -45,7 +45,7 @@ static int n, a, max_depth, digits, tab_width, per_row;
 static long N;
 signed int def_key;
 static uni_table temp, x, perm, *tab;
-static long pow[22], cluster, cmpcluster;
+static long pow_of_two[22], cluster, cmpcluster;
 static const char *const *name, *key_type_name, *table_name, *macro_name;
 static FILE *f;
 
@@ -61,22 +61,22 @@ most_binary (
   if (min == max)
     return max;
 
-  for (i = 21; max < pow[i]; i--)
+  for (i = 21; max < pow_of_two[i]; i--)
     ;
   ii = i;
-  while (i && !((min ^ max) & pow[i]))
+  while (i && !((min ^ max) & pow_of_two[i]))
     i--;
 
   if (ii == i)
     {
       /* min is less than half of max */
-      for (i = 21 - 1; min < pow[i]; i--)
+      for (i = 21 - 1; min < pow_of_two[i]; i--)
 	;
       i++;
-      return pow[i];
+      return pow_of_two[i];
     }
 
-  return max & (pow[i] - 1);
+  return max & (pow_of_two[i] - 1);
 }
 
 static void
@@ -87,9 +87,9 @@ init (
   register int i;
 
   /* initialize powers of two */
-  pow[0] = 1;
+  pow_of_two[0] = 1;
   for (i = 1; i <= 21; i++)
-    pow[i] = pow[i - 1] << 1;
+    pow_of_two[i] = pow_of_two[i - 1] << 1;
 
   /* reduce number of elements to get a more binary number */
   {
@@ -104,13 +104,13 @@ init (
     N = most_binary (essen, N);
   }
 
-  for (n = 21; N % pow[n]; n--)
+  for (n = 21; N % pow_of_two[n]; n--)
     ;
   digits = (n + 3) / 4;
   for (i = 6; i; i--)
-    if (pow[i] * (tab_width + 1) < 80)
+    if (pow_of_two[i] * (tab_width + 1) < 80)
       break;
-  per_row = pow[i];
+  per_row = pow_of_two[i];
 }
 
 static int
@@ -170,7 +170,7 @@ bt (
   for (i = 1 - t[lev] % 2; i <= nn + (t[lev] >> nn) % 2; i++)
     {
       nn -= (p[lev] = i);
-      clusters[lev] = cluster = (i && nn >= 0) ? pow[i] : t[lev];
+      clusters[lev] = cluster = (i && nn >= 0) ? pow_of_two[i] : t[lev];
       cmpcluster = cluster + 1;
 
       t[lev + 1] = (t[lev] - 1) / cluster + 1;
@@ -295,7 +295,7 @@ write_array (
     {
       int kk, jj;
       fprintf (f, "\n#define %sLev%d_%0*lX 0x%0X", table_name,
-	       best_lev - lev - 1, digits, x[i] * pow[n - nn], ofs);
+	       best_lev - lev - 1, digits, x[i] * pow_of_two[n - nn], ofs);
       kk = x[i] * cluster;
       if (!lev)
 	if (name)
@@ -316,9 +316,9 @@ write_array (
 	for (j = 0; j < cluster; j++, kk++)
 	  fprintf (f, "\n  %sLev%d_%0*lX,  /* %0*lX..%0*lX */", table_name,
 		   best_lev - lev, digits,
-		   tab[lev][kk] * pow[n - nn - best_p[lev]], digits,
-		   x[i] * pow[n - nn] + j * pow[n - nn - best_p[lev]], digits,
-		   x[i] * pow[n - nn] + (j + 1) * pow[n - nn - best_p[lev]] -
+		   tab[lev][kk] * pow_of_two[n - nn - best_p[lev]], digits,
+		   x[i] * pow_of_two[n - nn] + j * pow_of_two[n - nn - best_p[lev]], digits,
+		   x[i] * pow_of_two[n - nn] + (j + 1) * pow_of_two[n - nn - best_p[lev]] -
 		   1);
       ofs += cluster;
       jj = i;
@@ -362,7 +362,7 @@ write_source (
       if (j != 0)
 	fprintf (f, " >> %d", j);
       if (i)
-	fprintf (f, " & 0x%02lx) +", pow[best_p[best_lev - 1 - i]] - 1);
+	fprintf (f, " & 0x%02lx) +", pow_of_two[best_p[best_lev - 1 - i]] - 1);
       j += best_p[best_lev - 1 - i];
     }
   fprintf (f, ")");

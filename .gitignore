@@ -1,0 +1,8 @@
+build/
+config.h
+arabic-shaping.tab.i
+bidi-type.tab.i
+derived_bidi-type.tab.i
+fribidi-unicode-version.h
+joining-type.tab.i
+mirroring.tab.i
