@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.2)
 
-project(FriBidi C)
+project(fribidi C)
 
 set(FRIBIDI_MAJOR_VERSION 0)
 set(FRIBIDI_MINOR_VERSION 19)
@@ -169,11 +169,13 @@ add_library(fribidi STATIC
   lib/joining-types.h
   lib/run.h
   )
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 target_include_directories(fribidi
   PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
   INTERFACE
   $<INSTALL_INTERFACE:include/fribidi>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>
 )
 target_compile_definitions(fribidi
   PRIVATE
@@ -238,4 +240,9 @@ install(
     ${CMAKE_CURRENT_BINARY_DIR}/fribidi-config-version.cmake
   DESTINATION
     lib/cmake/fribidi
+)
+export(TARGETS fribidi
+  FILE
+  ${CMAKE_CURRENT_BINARY_DIR}/fribidi-config.cmake
+  NAMESPACE fribidi::
 )
